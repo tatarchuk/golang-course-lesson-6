@@ -7,15 +7,14 @@
 // the others. Run `go test -v ./validate/...` and read every FAIL line.
 package validate
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 const minCases = 8
 
 // emailCases is the table of test cases for ValidateEmail.
-//
-// TODO: add at least 5 more cases here — for example: whitespace inside
-// the address, a missing domain, a trailing dot, consecutive dots, a
-// very long local part, or a unicode character.
 var emailCases = []struct {
 	name  string
 	input string
@@ -25,7 +24,48 @@ var emailCases = []struct {
 	{"missing at sign", "student-softserve.academy", false},
 	{"empty string", "", false},
 
-	// TODO: add at least 5 more cases here.
+	// valid addresses
+	{"valid with dot and plus in local part", "first.last+tag@softserve.academy", true},
+	{"valid with subdomain", "student@mail.softserve.academy", true},
+	{"valid with digits and hyphen", "student42@soft-serve.academy", true},
+	{"valid with percent and underscore in local part", "stu_dent%1@softserve.academy", true},
+	{"valid uppercase letters", "Student@SoftServe.Academy", true},
+	{"valid local part of exactly 64 characters", strings.Repeat("a", 64) + "@softserve.academy", true},
+
+	// missing or duplicated parts
+	{"only at sign", "@", false},
+	{"two at signs", "student@@softserve.academy", false},
+	{"two at signs with text between", "student@soft@serve.academy", false},
+	{"missing local part", "@softserve.academy", false},
+	{"missing domain", "student@", false},
+	{"domain without a dot", "student@localhost", false},
+
+	// whitespace
+	{"whitespace inside local part", "stu dent@softserve.academy", false},
+	{"leading whitespace", " student@softserve.academy", false},
+	{"trailing newline", "student@softserve.academy\n", false},
+
+	// dots
+	{"leading dot in local part", ".student@softserve.academy", false},
+	{"trailing dot in local part", "student.@softserve.academy", false},
+	{"trailing dot in domain", "student@softserve.academy.", false},
+	{"consecutive dots in local part", "stu..dent@softserve.academy", false},
+	{"consecutive dots in domain", "student@softserve..academy", false},
+
+	// domain labels (the parts between the dots) - added after the AI blind
+	// test in Task 3 found that "user@-example.com" was accepted
+	{"leading hyphen in domain label", "student@-softserve.academy", false},
+	{"trailing hyphen in domain label", "student@softserve-.academy", false},
+	{"domain label of exactly 63 characters", "student@" + strings.Repeat("a", 63) + ".academy", true},
+	{"domain label of 64 characters is too long", "student@" + strings.Repeat("a", 64) + ".academy", false},
+
+	// unicode and length
+	{"unicode in local part", "студент@softserve.academy", false},
+	{"unicode in domain", "student@софтсерв.academy", false},
+	{"local part of 65 characters is too long", strings.Repeat("a", 65) + "@softserve.academy", false},
+	// 64 + 1 + 63 + 1 + 63 + 1 + 57 + 4 = 254 (each label stays within 63 characters)
+	{"whole address of exactly 254 characters", strings.Repeat("a", 64) + "@" + strings.Repeat("b", 63) + "." + strings.Repeat("c", 63) + "." + strings.Repeat("d", 57) + ".com", true},
+	{"whole address of 255 characters is too long", strings.Repeat("a", 64) + "@" + strings.Repeat("b", 63) + "." + strings.Repeat("c", 63) + "." + strings.Repeat("d", 58) + ".com", false},
 }
 
 func TestValidateEmail(t *testing.T) {
@@ -48,12 +88,6 @@ func TestValidateEmail(t *testing.T) {
 }
 
 // phoneCases is the table of test cases for ValidatePhone.
-// This is only required if your mentor asked you to validate phone
-// numbers instead of (or in addition to) email addresses.
-//
-// TODO: add at least 5 more cases here — for example: missing digits,
-// letters mixed in, an unexpected country code format, or extra
-// separators like spaces, dots or parentheses.
 var phoneCases = []struct {
 	name  string
 	input string
@@ -63,7 +97,26 @@ var phoneCases = []struct {
 	{"contains letters", "050-abc-4567", false},
 	{"empty string", "", false},
 
-	// TODO: add at least 5 more cases here.
+	// valid formats
+	{"valid local with dashes", "050-123-4567", true},
+	{"valid local without separators", "0501234567", true},
+	{"valid international with spaces and parentheses", "+38 (050) 123 45 67", true},
+	{"valid with 15 digits (max length)", "+123456789012345", true},
+
+	// wrong number of digits
+	{"too short", "12345", false},
+	{"9 digits is one too few", "050123456", false},
+	{"16 digits is one too many", "+1234567890123456", false},
+	{"only plus sign", "+", false},
+	{"only separators", "- () -", false},
+
+	// wrong characters / wrong position
+	{"plus in the middle", "380+501234567", false},
+	{"two plus signs", "++380501234567", false},
+	{"dots as separators", "050.123.4567", false},
+	{"leading whitespace", " +380501234567", false},
+	{"trailing whitespace", "0501234567 ", false},
+	{"unicode letters", "050-абв-4567", false},
 }
 
 func TestValidatePhone(t *testing.T) {
